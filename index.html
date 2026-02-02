@@ -1,0 +1,581 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Functus! - Organizador Financeiro</title>
+    <style>
+        :root {
+            --primary: #2c3e50;
+            --accent: #3498db;
+            --danger: #e74c3c;
+            --success: #27ae60;
+            --bg: #f4f6f7;
+            --card-bg: #ffffff;
+            --text: #2c3e50;
+        }
+
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: var(--bg); color: var(--text); margin: 0; padding: 0; display: flex; flex-direction: column; height: 100vh; }
+        
+        /* Layout */
+        header { background: var(--primary); color: white; padding: 1rem 2rem; display: flex; justify-content: space-between; align-items: center; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
+        h1 { margin: 0; font-size: 1.5rem; letter-spacing: 1px; }
+        
+        main { flex: 1; padding: 2rem; overflow-y: auto; display: flex; gap: 20px; flex-wrap: wrap; }
+        
+        /* Components */
+        .card { background: var(--card-bg); border-radius: 8px; padding: 1.5rem; box-shadow: 0 4px 6px rgba(0,0,0,0.05); flex: 1 1 300px; min-width: 300px; }
+        .card.full-width { flex: 1 1 100%; }
+        
+        .stat-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 1rem; margin-bottom: 1rem; }
+        .stat-box { background: #ecf0f1; padding: 1rem; border-radius: 6px; text-align: center; }
+        .stat-val { font-size: 1.5rem; font-weight: bold; color: var(--primary); }
+        .stat-label { font-size: 0.85rem; text-transform: uppercase; color: #7f8c8d; }
+
+        /* Forms */
+        .form-group { margin-bottom: 1rem; }
+        label { display: block; margin-bottom: 0.5rem; font-weight: 600; font-size: 0.9rem; }
+        input, select, button { width: 100%; padding: 0.8rem; border: 1px solid #bdc3c7; border-radius: 4px; box-sizing: border-box; font-size: 1rem; }
+        button { background: var(--accent); color: white; border: none; cursor: pointer; transition: 0.2s; font-weight: 600; }
+        button:hover { background: #2980b9; }
+        button.secondary { background: #95a5a6; }
+        button.danger { background: var(--danger); }
+
+        /* Tables & Lists */
+        table { width: 100%; border-collapse: collapse; margin-top: 1rem; font-size: 0.9rem; }
+        th, td { text-align: left; padding: 0.8rem; border-bottom: 1px solid #ecf0f1; }
+        th { background-color: #f8f9fa; color: var(--primary); }
+        
+        /* Utilities */
+        .tabs { display: flex; gap: 1rem; margin-bottom: 1rem; border-bottom: 2px solid #ecf0f1; padding-bottom: 0.5rem; }
+        .tab { cursor: pointer; padding: 0.5rem 1rem; border-radius: 4px; opacity: 0.6; }
+        .tab.active { background: var(--accent); color: white; opacity: 1; }
+        .hidden { display: none; }
+        .tag { display: inline-block; padding: 0.2rem 0.5rem; border-radius: 4px; font-size: 0.75rem; color: white; }
+        .tag-card { background-color: var(--primary); }
+        .tag-person { background-color: var(--success); }
+
+        /* Prolixo mas visual leve */
+        .details { font-size: 0.8rem; color: #7f8c8d; margin-top: 0.2rem; }
+    </style>
+</head>
+<body>
+
+<header>
+    <div>
+        <h1>Functus! <span style="font-size:0.8rem; opacity:0.8">v1.0</span></h1>
+        <small>Vencendo a Entropia Financeira</small>
+    </div>
+    <div style="display: flex; gap: 10px;">
+        <button onclick="app.exportData()" style="width: auto; padding: 0.5rem 1rem;">💾 Exportar JSON</button>
+        <button onclick="document.getElementById('fileInput').click()" style="width: auto; padding: 0.5rem 1rem; background: var(--success)">📂 Importar</button>
+        <input type="file" id="fileInput" class="hidden" onchange="app.importData(this)">
+    </div>
+</header>
+
+<div style="padding: 1rem 2rem;">
+    <div class="tabs">
+        <div class="tab active" onclick="app.switchTab('dashboard')">📊 Dashboard</div>
+        <div class="tab" onclick="app.switchTab('entries')">📝 Lançamentos</div>
+        <div class="tab" onclick="app.switchTab('calendar')">📅 Calendário</div>
+        <div class="tab" onclick="app.switchTab('cards')">💳 Cartões & Config</div>
+    </div>
+</div>
+
+<main id="main-content">
+    </main>
+
+<script>
+/**
+ * LÓGICA DE NEGÓCIOS - FUNCTUS
+ * * Estrutura de Dados (Estado):
+ * - cards: [] (id, name, closingDate, dueDate, active)
+ * - expenses: [] (id, description, value, type, category, beneficiary, cardId, installments, paidInstallments, date)
+ * - income: [] (id, description, value, date)
+ */
+
+const Utils = {
+    uuid: () => Date.now().toString(36) + Math.random().toString(36).substr(2),
+    formatCurrency: (val) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(val),
+    formatDate: (dateStr) => {
+        if(!dateStr) return '-';
+        const [y, m, d] = dateStr.split('-');
+        return `${d}/${m}/${y}`;
+    },
+    addMonths: (date, months) => {
+        const d = new Date(date);
+        d.setMonth(d.getMonth() + months);
+        return d;
+    }
+};
+
+const Store = {
+    data: {
+        cards: [],
+        expenses: [],
+        income: [],
+        categories: [
+            "Alimentação", "Mercado", "Água/Luz/Net", "Tributos/Impostos", 
+            "Pets", "Aluguel/Reparos", "Lazer/Saída", 
+            "Viagens", "Material Escolar", "Filhos", "Medicamentos", 
+            "Entretenimento (Streaming)", "Escritório"
+        ],
+        beneficiaries: ["Geral", "Hugo", "Lívia", "Helena", "Nina", "Lilica"]
+    },
+    
+    init() {
+        const saved = localStorage.getItem('functus_db');
+        if (saved) {
+            this.data = JSON.parse(saved);
+        } else {
+            // Dados Iniciais de Exemplo (para não começar vazio)
+            this.seed();
+        }
+    },
+
+    save() {
+        localStorage.setItem('functus_db', JSON.stringify(this.data));
+        app.render(); // Re-renderiza ao salvar
+    },
+
+    seed() {
+        // Exemplo inicial baseado no prompt
+        this.data.cards.push({ id: 'c1', name: 'Mastercard Black', closingDay: 5, dueDay: 10, active: true });
+        this.data.expenses.push({
+            id: Utils.uuid(), description: 'Netflix', value: 55.90, type: 'recorrente', 
+            category: 'Entretenimento (Streaming)', beneficiary: 'Geral', cardId: 'c1', 
+            installments: 1, paidInstallments: 0, date: '2026-01-15'
+        });
+        this.data.expenses.push({
+            id: Utils.uuid(), description: 'Cálculo Jurídico', value: 120.00, type: 'recorrente', 
+            category: 'Escritório', beneficiary: 'Hugo', cardId: 'c1', 
+            installments: 1, paidInstallments: 0, date: '2026-01-20'
+        });
+        this.save();
+    }
+};
+
+const App = {
+    currentTab: 'dashboard',
+
+    init() {
+        Store.init();
+        this.render();
+    },
+
+    switchTab(tab) {
+        this.currentTab = tab;
+        document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+        document.querySelectorAll(`.tab[onclick="app.switchTab('${tab}')"]`).forEach(t => t.classList.add('active'));
+        this.render();
+    },
+
+    exportData() {
+        const dataStr = JSON.stringify(Store.data, null, 2);
+        const blob = new Blob([dataStr], { type: "application/json" });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `functus_backup_${new Date().toISOString().slice(0,10)}.json`;
+        a.click();
+    },
+
+    importData(input) {
+        const file = input.files[0];
+        const reader = new FileReader();
+        reader.onload = (e) => {
+            try {
+                Store.data = JSON.parse(e.target.result);
+                Store.save();
+                alert("Dados importados com sucesso! A entropia diminuiu.");
+            } catch (err) {
+                alert("Erro ao ler arquivo JSON.");
+            }
+        };
+        reader.readAsText(file);
+    },
+
+    // --- RENDERIZADORES ---
+
+    render() {
+        const main = document.getElementById('main-content');
+        main.innerHTML = '';
+
+        if (this.currentTab === 'dashboard') this.renderDashboard(main);
+        if (this.currentTab === 'entries') this.renderEntries(main);
+        if (this.currentTab === 'calendar') this.renderCalendar(main);
+        if (this.currentTab === 'cards') this.renderCards(main);
+    },
+
+    renderDashboard(container) {
+        // Cálculos Rápidos
+        const totalIncome = Store.data.income.reduce((acc, curr) => acc + parseFloat(curr.value), 0);
+        
+        // Calcular despesas do mês corrente (aproximado para o dashboard)
+        const currentMonth = new Date().toISOString().slice(0, 7); // YYYY-MM
+        const totalExpense = Store.data.expenses.reduce((acc, exp) => {
+            // Lógica simplificada de soma total (refinada no calendário)
+            return acc + parseFloat(exp.value); 
+        }, 0);
+
+        container.innerHTML = `
+            <div class="card full-width">
+                <h2>Visão Geral</h2>
+                <div class="stat-grid">
+                    <div class="stat-box">
+                        <div class="stat-val" style="color:var(--success)">${Utils.formatCurrency(totalIncome)}</div>
+                        <div class="stat-label">Receita Declarada</div>
+                    </div>
+                    <div class="stat-box">
+                        <div class="stat-val" style="color:var(--danger)">${Utils.formatCurrency(totalExpense)}</div>
+                        <div class="stat-label">Total Cadastrado (Soma bruta)</div>
+                    </div>
+                    <div class="stat-box">
+                        <div class="stat-val">${Utils.formatCurrency(totalIncome - totalExpense)}</div>
+                        <div class="stat-label">Saldo Teórico</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="card">
+                <h3>Top Gastos por Categoria</h3>
+                ${this.getTopCategoriesHTML()}
+            </div>
+             <div class="card">
+                <h3>Gastos por Beneficiário</h3>
+                ${this.getTopBeneficiariesHTML()}
+            </div>
+        `;
+    },
+
+    getTopCategoriesHTML() {
+        const catMap = {};
+        Store.data.expenses.forEach(e => {
+            catMap[e.category] = (catMap[e.category] || 0) + parseFloat(e.value);
+        });
+        const sorted = Object.entries(catMap).sort((a,b) => b[1] - a[1]);
+        
+        return `<table>${sorted.map(([cat, val]) => `
+            <tr><td>${cat}</td><td style="text-align:right"><b>${Utils.formatCurrency(val)}</b></td></tr>
+        `).join('')}</table>`;
+    },
+
+    getTopBeneficiariesHTML() {
+        const benMap = {};
+        Store.data.expenses.forEach(e => {
+            benMap[e.beneficiary] = (benMap[e.beneficiary] || 0) + parseFloat(e.value);
+        });
+        return `<table>${Object.entries(benMap).map(([ben, val]) => `
+             <tr><td>${ben}</td><td style="text-align:right">${Utils.formatCurrency(val)}</td></tr>
+        `).join('')}</table>`;
+    },
+
+    renderEntries(container) {
+        // Formulário de Despesa
+        const activeCards = Store.data.cards.filter(c => c.active);
+        
+        const cardOptions = activeCards.map(c => `<option value="${c.id}">${c.name} (Vence dia ${c.dueDay})</option>`).join('');
+        const catOptions = Store.data.categories.map(c => `<option value="${c}">${c}</option>`).join('');
+        const benOptions = Store.data.beneficiaries.map(b => `<option value="${b}">${b}</option>`).join('');
+
+        container.innerHTML = `
+            <div class="card">
+                <h3>Nova Despesa</h3>
+                <form onsubmit="app.handleAddExpense(event)">
+                    <div class="form-group">
+                        <label>Descrição</label>
+                        <input type="text" name="desc" required placeholder="Ex: Ração da Lilica">
+                    </div>
+                    <div class="form-group">
+                        <label>Valor Total (R$)</label>
+                        <input type="number" step="0.01" name="value" required>
+                    </div>
+                    <div style="display:flex; gap:10px">
+                        <div class="form-group" style="flex:1">
+                            <label>Categoria</label>
+                            <select name="category">${catOptions}</select>
+                        </div>
+                        <div class="form-group" style="flex:1">
+                            <label>Beneficiário</label>
+                            <select name="beneficiary">${benOptions}</select>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label>Tipo de Pagamento</label>
+                        <select name="type" onchange="app.toggleInstallments(this.value)">
+                            <option value="avista">À vista / Débito / Pix</option>
+                            <option value="cartao_avista">Cartão de Crédito (1x)</option>
+                            <option value="parcelado">Parcelado</option>
+                            <option value="recorrente">Recorrente (Assinatura)</option>
+                        </select>
+                    </div>
+                    
+                    <div id="card-selection" class="hidden form-group">
+                        <label>Cartão</label>
+                        <select name="cardId">${cardOptions}</select>
+                    </div>
+
+                    <div id="installment-area" class="hidden" style="display:flex; gap:10px">
+                        <div class="form-group" style="flex:1">
+                            <label>Total de Parcelas</label>
+                            <input type="number" name="installments" value="1" min="1">
+                        </div>
+                        <div class="form-group" style="flex:1">
+                            <label>Já Pagas</label>
+                            <input type="number" name="paid" value="0" min="0">
+                        </div>
+                    </div>
+
+                    <div class="form-group">
+                        <label>Data da Compra</label>
+                        <input type="date" name="date" required value="${new Date().toISOString().split('T')[0]}">
+                    </div>
+
+                    <button type="submit">Adicionar Despesa</button>
+                </form>
+            </div>
+
+            <div class="card full-width">
+                <h3>Últimos Lançamentos</h3>
+                <table>
+                    <thead>
+                        <tr><th>Data</th><th>Descrição</th><th>Quem</th><th>Valor</th><th>Detalhes</th><th>Ação</th></tr>
+                    </thead>
+                    <tbody>
+                        ${Store.data.expenses.slice().reverse().map(e => {
+                            const card = Store.data.cards.find(c => c.id === e.cardId);
+                            const cardName = card ? `<span class="tag tag-card">${card.name}</span>` : '';
+                            return `
+                            <tr>
+                                <td>${Utils.formatDate(e.date)}</td>
+                                <td>${e.description}<br><span class="details">${e.category}</span></td>
+                                <td><span class="tag tag-person">${e.beneficiary}</span></td>
+                                <td>${Utils.formatCurrency(e.value)}</td>
+                                <td>
+                                    ${e.type === 'parcelado' ? `Parcelado ${e.installments}x` : e.type} 
+                                    ${cardName}
+                                </td>
+                                <td><button class="danger" style="padding:5px 10px; width:auto" onclick="app.deleteExpense('${e.id}')">X</button></td>
+                            </tr>
+                        `}).join('')}
+                    </tbody>
+                </table>
+            </div>
+        `;
+    },
+
+    renderCalendar(container) {
+        // Lógica "Prolixa" do Calendário
+        // Precisamos projetar as parcelas nos meses futuros
+        const projections = {}; // Chave: "YYYY-MM", Valor: { total: 0, items: [] }
+        
+        const now = new Date();
+        // Projetar para os próximos 12 meses
+        for(let i=0; i<12; i++) {
+            const d = Utils.addMonths(now, i);
+            const key = d.toISOString().slice(0, 7);
+            projections[key] = { total: 0, items: [] };
+        }
+
+        Store.data.expenses.forEach(exp => {
+            const expDate = new Date(exp.date);
+            let startMonthIndex = 0; // 0 = mês da compra
+
+            // Se for cartão, calcular quando cai a primeira parcela
+            if (exp.cardId) {
+                const card = Store.data.cards.find(c => c.id === exp.cardId);
+                // Mesmo se o cartão foi deletado (card is defined), a lógica aplica
+                if (card) {
+                    const buyDay = expDate.getDate();
+                    if (buyDay >= card.closingDay) {
+                        // Comprou depois do fechamento, joga pro próximo mês
+                        startMonthIndex = 1;
+                    }
+                }
+            }
+
+            const totalParcels = parseInt(exp.installments) || 1;
+            const alreadyPaid = parseInt(exp.paidInstallments) || 0;
+            const remaining = totalParcels - alreadyPaid;
+            
+            // Valor da parcela
+            const parcelValue = parseFloat(exp.value) / (exp.type === 'parcelado' ? totalParcels : 1);
+
+            if (exp.type === 'recorrente') {
+                // Projeta em todos os meses futuros
+                Object.keys(projections).forEach(key => {
+                    projections[key].total += parcelValue;
+                    projections[key].items.push({ desc: exp.description, val: parcelValue, note: 'Recorrente' });
+                });
+            } else {
+                // Projeta parcelas restantes
+                for (let i = 0; i < remaining; i++) {
+                    const currentParcelDate = Utils.addMonths(expDate, startMonthIndex + i);
+                    const key = currentParcelDate.toISOString().slice(0, 7);
+                    
+                    if (projections[key]) {
+                        projections[key].total += parcelValue;
+                        const parcelNum = alreadyPaid + i + 1;
+                        projections[key].items.push({ 
+                            desc: exp.description, 
+                            val: parcelValue, 
+                            note: exp.type === 'parcelado' ? `${parcelNum}/${totalParcels}` : 'À vista' 
+                        });
+                    }
+                }
+            }
+        });
+
+        // HTML do Calendário
+        let html = '<div class="card full-width"><h2>Projeção de Fluxo de Caixa</h2></div>';
+        
+        Object.entries(projections).forEach(([month, data]) => {
+            if(data.total === 0) return;
+            html += `
+                <div class="card">
+                    <div style="display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid #eee; padding-bottom:10px; margin-bottom:10px;">
+                        <h3 style="margin:0">${month}</h3>
+                        <span style="font-size:1.2rem; font-weight:bold; color:var(--danger)">${Utils.formatCurrency(data.total)}</span>
+                    </div>
+                    <ul style="list-style:none; padding:0; font-size:0.85rem;">
+                        ${data.items.map(item => `
+                            <li style="display:flex; justify-content:space-between; margin-bottom:5px;">
+                                <span>${item.desc} <small style="color:#999">(${item.note})</small></span>
+                                <span>${Utils.formatCurrency(item.val)}</span>
+                            </li>
+                        `).join('')}
+                    </ul>
+                </div>
+            `;
+        });
+        
+        container.innerHTML = html;
+    },
+
+    renderCards(container) {
+        container.innerHTML = `
+            <div class="card">
+                <h3>Gerenciar Cartões</h3>
+                <form onsubmit="app.handleAddCard(event)">
+                    <div class="form-group">
+                        <label>Nome do Cartão</label>
+                        <input type="text" name="name" placeholder="Ex: Nubank, Visa XP" required>
+                    </div>
+                    <div style="display:flex; gap:10px">
+                        <div class="form-group">
+                            <label>Dia Fechamento</label>
+                            <input type="number" name="closing" min="1" max="31" required>
+                        </div>
+                        <div class="form-group">
+                            <label>Dia Vencimento</label>
+                            <input type="number" name="due" min="1" max="31" required>
+                        </div>
+                    </div>
+                    <button type="submit">Adicionar Cartão</button>
+                </form>
+            </div>
+
+            <div class="card full-width">
+                <h3>Cartões Cadastrados</h3>
+                <table>
+                    <thead><tr><th>Nome</th><th>Fechamento</th><th>Vencimento</th><th>Status</th><th>Ação</th></tr></thead>
+                    <tbody>
+                        ${Store.data.cards.map(c => `
+                            <tr style="${!c.active ? 'opacity:0.5; background:#f9f9f9' : ''}">
+                                <td>${c.name}</td>
+                                <td>Dia ${c.closingDay}</td>
+                                <td>Dia ${c.dueDay}</td>
+                                <td>${c.active ? '<span style="color:green">Ativo</span>' : 'Excluído'}</td>
+                                <td>
+                                    ${c.active 
+                                        ? `<button class="danger" style="padding:5px; width:auto" onclick="app.toggleCardStatus('${c.id}', false)">Excluir</button>` 
+                                        : `<button class="secondary" style="padding:5px; width:auto" onclick="app.toggleCardStatus('${c.id}', true)">Restaurar</button>`
+                                    }
+                                </td>
+                            </tr>
+                        `).join('')}
+                    </tbody>
+                </table>
+                <p class="details">* Cartões "excluídos" não aparecem para novas compras, mas suas dívidas antigas continuam sendo calculadas no calendário.</p>
+            </div>
+        `;
+    },
+
+    // --- HANDLERS ---
+
+    toggleInstallments(type) {
+        const cardSel = document.getElementById('card-selection');
+        const instArea = document.getElementById('installment-area');
+        
+        if (type.includes('cartao') || type === 'parcelado') {
+            cardSel.classList.remove('hidden');
+        } else {
+            cardSel.classList.add('hidden');
+        }
+
+        if (type === 'parcelado') {
+            instArea.classList.remove('hidden');
+        } else {
+            instArea.classList.add('hidden');
+        }
+    },
+
+    handleAddExpense(e) {
+        e.preventDefault();
+        const f = e.target;
+        const expense = {
+            id: Utils.uuid(),
+            description: f.desc.value,
+            value: f.value.value,
+            type: f.type.value,
+            category: f.category.value,
+            beneficiary: f.beneficiary.value,
+            date: f.date.value,
+            installments: f.installments.value,
+            paidInstallments: f.paid.value,
+            cardId: (f.type.includes('cartao') || f.type === 'parcelado') ? f.cardId.value : null
+        };
+        Store.data.expenses.push(expense);
+        Store.save();
+        alert('Despesa adicionada!');
+        f.reset();
+        this.render();
+    },
+
+    handleAddCard(e) {
+        e.preventDefault();
+        const f = e.target;
+        Store.data.cards.push({
+            id: Utils.uuid(),
+            name: f.name.value,
+            closingDay: parseInt(f.closing.value),
+            dueDay: parseInt(f.due.value),
+            active: true
+        });
+        Store.save();
+        this.render();
+    },
+
+    toggleCardStatus(id, status) {
+        const card = Store.data.cards.find(c => c.id === id);
+        if(card) {
+            card.active = status;
+            Store.save();
+        }
+    },
+
+    deleteExpense(id) {
+        if(confirm('Tem certeza?')) {
+            Store.data.expenses = Store.data.expenses.filter(e => e.id !== id);
+            Store.save();
+        }
+    }
+};
+
+// Start
+app = App; // Global scope for event handlers
+App.init();
+</script>
+
+</body>
+</html>

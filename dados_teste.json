@@ -1,0 +1,156 @@
+{
+  "categories": [
+    "Alimentação", "Mercado", "Água/Luz/Net", "Tributos/Impostos", 
+    "Pets", "Aluguel/Reparos", "Lazer/Saída", 
+    "Viagens", "Material Escolar", "Filhos", "Medicamentos", 
+    "Entretenimento (Streaming)", "Escritório"
+  ],
+  "beneficiaries": ["Geral", "Hugo", "Lívia", "Helena", "Nina", "Lilica"],
+  "cards": [
+    {
+      "id": "card_xp_inf",
+      "name": "XP Visa Infinite",
+      "closingDay": 5,
+      "dueDay": 10,
+      "active": true
+    },
+    {
+      "id": "card_master_black",
+      "name": "Mastercard Black",
+      "closingDay": 25,
+      "dueDay": 30,
+      "active": true
+    },
+    {
+      "id": "card_nubank_old",
+      "name": "Nubank (Cancelado)",
+      "closingDay": 1,
+      "dueDay": 8,
+      "active": false
+    }
+  ],
+  "expenses": [
+    {
+      "id": "exp_laptop",
+      "description": "Macbook Air (Dívida Antiga)",
+      "value": 7500.00,
+      "type": "parcelado",
+      "category": "Escritório",
+      "beneficiary": "Hugo",
+      "cardId": "card_nubank_old",
+      "installments": 12,
+      "paidInstallments": 9,
+      "date": "2025-05-10"
+    },
+    {
+      "id": "exp_viagem",
+      "description": "Pacote Resort Alagoas",
+      "value": 12000.00,
+      "type": "parcelado",
+      "category": "Viagens",
+      "beneficiary": "Geral",
+      "cardId": "card_xp_inf",
+      "installments": 24,
+      "paidInstallments": 2,
+      "date": "2025-12-20"
+    },
+    {
+      "id": "exp_calc_jur",
+      "description": "Cálculo Jurídico Mensal",
+      "value": 149.90,
+      "type": "recorrente",
+      "category": "Escritório",
+      "beneficiary": "Hugo",
+      "cardId": "card_master_black",
+      "installments": 1,
+      "paidInstallments": 0,
+      "date": "2026-01-05"
+    },
+    {
+      "id": "exp_netflix",
+      "description": "Netflix 4K",
+      "value": 55.90,
+      "type": "recorrente",
+      "category": "Entretenimento (Streaming)",
+      "beneficiary": "Geral",
+      "cardId": "card_xp_inf",
+      "installments": 1,
+      "paidInstallments": 0,
+      "date": "2026-01-10"
+    },
+    {
+      "id": "exp_vet_nina",
+      "description": "Cirurgia Nina",
+      "value": 1500.00,
+      "type": "parcelado",
+      "category": "Pets",
+      "beneficiary": "Nina",
+      "cardId": "card_master_black",
+      "installments": 3,
+      "paidInstallments": 0,
+      "date": "2026-01-28"
+    },
+    {
+      "id": "exp_racao_lilica",
+      "description": "Ração Premium Lilica",
+      "value": 250.00,
+      "type": "avista",
+      "category": "Pets",
+      "beneficiary": "Lilica",
+      "cardId": null,
+      "installments": 1,
+      "paidInstallments": 0,
+      "date": "2026-02-01"
+    },
+    {
+      "id": "exp_escola_helena",
+      "description": "Material Escolar Helena",
+      "value": 850.00,
+      "type": "cartao_avista",
+      "category": "Material Escolar",
+      "beneficiary": "Helena",
+      "cardId": "card_xp_inf",
+      "installments": 1,
+      "paidInstallments": 0,
+      "date": "2026-01-15"
+    },
+    {
+      "id": "exp_med_livia",
+      "description": "Farmácia Mensal",
+      "value": 320.00,
+      "type": "avista",
+      "category": "Medicamentos",
+      "beneficiary": "Lívia",
+      "cardId": null,
+      "installments": 1,
+      "paidInstallments": 0,
+      "date": "2026-01-30"
+    },
+    {
+      "id": "exp_supermercado",
+      "description": "Compra do Mês",
+      "value": 1200.00,
+      "type": "cartao_avista",
+      "category": "Mercado",
+      "beneficiary": "Geral",
+      "cardId": "card_master_black",
+      "installments": 1,
+      "paidInstallments": 0,
+      "date": "2026-02-01"
+    }
+  ],
+  "income": [
+    {
+      "id": "inc_prolabore",
+      "description": "Pró-labore Escritório",
+      "value": 15000.00,
+      "date": "2026-02-05"
+    },
+    {
+      "id": "inc_extra",
+      "description": "Honorários Sucumbência",
+      "value": 4500.00,
+      "date": "2026-02-15"
+    }
+  ]
+}
